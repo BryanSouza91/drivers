@@ -1,10 +1,10 @@
-package is31fl3731
+ckage is31fl3731
 
 import (
 	"fmt"
 
-	"tinygo.org/x/drivers"
-	"tinygo.org/x/drivers/internal/legacy"
+	"github.com/BryanSouza91/drivers"
+	"github.com/BryanSouza91/drivers/internal/legacy"
 )
 
 // DeviceAdafruitCharliePlex16x9 implements TinyGo driver for Lumissil
