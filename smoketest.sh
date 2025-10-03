@@ -41,6 +41,7 @@ tinygo build -size short -o ./build/test.hex -target=pyportal ./examples/ili9341
 tinygo build -size short -o ./build/test.hex -target=pyportal ./examples/ili9341/scroll
 tinygo build -size short -o ./build/test.hex -target=xiao ./examples/ili9341/scroll
 tinygo build -size short -o ./build/test.hex -target=pyportal ./examples/ili9341/slideshow
+tinygo build -size short -o ./build/test.hex -target=xiao-ble ./examples/ist83xx/main.go
 tinygo build -size short -o ./build/test.hex -target=circuitplay-express ./examples/lis3dh/main.go
 tinygo build -size short -o ./build/test.hex -target=nano-33-ble ./examples/lps22hb/main.go
 tinygo build -size short -o ./build/test.hex -target=microbit ./examples/lsm303agr/main.go
