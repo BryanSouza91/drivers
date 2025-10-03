@@ -1,0 +1,180 @@
+package ist83xx
+
+import (
+	"errors"
+	"machine"
+	"time"
+
+	"tinygo.org/x/drivers"
+	"tinygo.org/x/drivers/internal/legacy"
+)
+
+// Device wraps an I2C connection to an IST8308 or IST8310 device.
+type Device struct {
+	bus        drivers.I2C
+	deviceType byte
+}
+
+// New creates a new IST83xx connection. The I2C bus must already be configured.
+//
+// This function only creates the Device object, it does not touch the device.
+func New(bus drivers.I2C) Device {
+	return Device{
+		bus: bus,
+	}
+}
+
+// Configure sets up the device, attempting to autodetect either an IST8308 or IST8310.
+func (d *Device) Configure() error {
+	// Probe for IST8308 first
+	d.bus.SetAddress(IST8308_I2C_ADDRESS_DEFAULT)
+	if d.probe(IST8308) {
+		d.deviceType = IST8308
+		return d.configureIST8308()
+	}
+
+	// Probe for IST8310 second
+	d.bus.SetAddress(IST8310_I2C_ADDRESS_DEFAULT)
+	if d.probe(IST8310) {
+		d.deviceType = IST8310
+		return d.configureIST8310()
+	}
+
+	return errors.New("IST83xx not detected")
+}
+
+// Connected returns whether an IST83xx device has been found.
+func (d *Device) Connected() bool {
+	return d.deviceType != 0
+}
+
+func (d *Device) probe(devID byte) bool {
+	if devID == IST8308 {
+		for i := 0; i < 3; i++ {
+			val, _ := d.readRegister(IST8308_RegisterWAI)
+			if val == IST8308_DeviceID {
+				return true
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	} else if devID == IST8310 {
+		for addr := 0x0C; addr <= 0x0F; addr++ {
+			d.bus.SetAddress(uint16(addr))
+			d.writeRegister(IST8310_RegisterCNTL2, IST8310_CNTL2_BIT_SRST)
+		}
+		time.Sleep(10 * time.Millisecond)
+		val, _ := d.readRegister(IST8310_RegisterWAI)
+		if val == IST8310_DeviceID {
+			return true
+		}
+	}
+	return false
+}
+
+// readRegister reads a 1-byte register value.
+func (d *Device) readRegister(reg uint8) (uint8, error) {
+	data := []byte{0}
+	err := legacy.ReadRegister(d.bus, uint8(d.bus.Address()), reg, data)
+	if err != nil {
+		return 0, err
+	}
+	return data[0], nil
+}
+
+// writeRegister writes a 1-byte value to a register.
+func (d *Device) writeRegister(reg uint8, val uint8) error {
+	data := []byte{val}
+	err := legacy.WriteRegister(d.bus, uint8(d.bus.Address()), reg, data)
+	return err
+}
+
+// readRegisters reads a block of registers starting from the specified address.
+func (d *Device) readRegisters(reg uint8, len int) ([]byte, error) {
+	data := make([]byte, len)
+	err := legacy.ReadRegister(d.bus, uint8(d.bus.Address()), reg, data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// configureIST8308 sets up the IST8308 device.
+func (d *Device) configureIST8308() error {
+	d.writeRegister(IST8308_RegisterCNTL3, IST8308_CNTL3_BIT_SRST)
+	time.Sleep(50 * time.Millisecond)
+	d.writeRegister(IST8308_RegisterCNTL2, 0x06)
+	d.writeRegister(IST8308_RegisterCNTL4, 0x01)
+	d.writeRegister(IST8308_RegisterOSRCNTL, 0x55)
+	return nil
+}
+
+// configureIST8310 sets up the IST8310 device.
+func (d *Device) configureIST8310() error {
+	d.writeRegister(IST8310_RegisterCNTL2, IST8310_CNTL2_BIT_SRST)
+	time.Sleep(50 * time.Millisecond)
+	d.writeRegister(IST8310_RegisterCNTL3, IST8310_CNTL3_BIT_X_16BIT|IST8310_CNTL3_BIT_Y_16BIT|IST8310_CNTL3_BIT_Z_16BIT)
+	d.writeRegister(IST8310_RegisterAVGCNTL, 0x44)
+	d.writeRegister(IST8310_RegisterPDCNTL, 0xC0)
+	return nil
+}
+
+// ReadMagnetometer reads the magnetometer values for X, Y, and Z axes.
+func (d *Device) ReadMagnetometer() (x, y, z int16, err error) {
+	switch d.deviceType {
+	case IST8308:
+		return d.readMagnetometerIST8308()
+	case IST8310:
+		return d.readMagnetometerIST8310()
+	default:
+		return 0, 0, 0, errors.New("device not configured")
+	}
+}
+
+// readMagnetometerIST8308 reads and processes data from the IST8308.
+func (d *Device) readMagnetometerIST8308() (x, y, z int16, err error) {
+	buf, err := d.readRegisters(IST8308_RegisterSTAT, 7)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	if (buf[0] & IST8308_STAT_BIT_DRDY) == 0 {
+		return 0, 0, 0, errors.New("data not ready")
+	}
+
+	x = int16(buf[2])<<8 | int16(buf[1])
+	y = int16(buf[4])<<8 | int16(buf[3])
+	z = int16(buf[6])<<8 | int16(buf[5])
+	if z == -32768 {
+		z = 32767
+	} else {
+		z = -z
+	}
+
+	return
+}
+
+// readMagnetometerIST8310 reads and processes data from the IST8310.
+func (d *Device) readMagnetometerIST8310() (x, y, z int16, err error) {
+	d.writeRegister(IST8310_RegisterCNTL1, IST8310_CNTL1_BIT_MODE_SINGLE_MEASUREMENT)
+	time.Sleep(20 * time.Millisecond)
+
+	buf, err := d.readRegisters(IST8310_RegisterSTAT1, 7)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	if (buf[0] & IST8310_STAT1_BIT_DRDY) == 0 {
+		return 0, 0, 0, errors.New("data not ready")
+	}
+
+	x = int16(buf[2])<<8 | int16(buf[1])
+	y = int16(buf[4])<<8 | int16(buf[3])
+	z = int16(buf[6])<<8 | int16(buf[5])
+	if z == -32768 {
+		z = 32767
+	} else {
+		z = -z
+	}
+
+	return
+}
