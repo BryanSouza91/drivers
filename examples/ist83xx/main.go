@@ -23,11 +23,11 @@ func main() {
 		}
 	}
 
-	// ReadMagnetometer returns the 
+	// ReadMagnetometer returns the magnetometer readings
 	m, err := sensor.ReadMagnetometer()
 	if err != nil {
-		fmt.Println(err)
+		println(err)
 	}
 
-	fmt.Println(m)
+	println(m)
 }
