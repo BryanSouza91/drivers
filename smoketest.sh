@@ -105,6 +105,7 @@ tinygo build -size short -o ./build/test.hex -target=xiao ./examples/pcf8563/ala
 tinygo build -size short -o ./build/test.hex -target=xiao ./examples/pcf8563/clkout/
 tinygo build -size short -o ./build/test.hex -target=xiao ./examples/pcf8563/time/
 tinygo build -size short -o ./build/test.hex -target=xiao ./examples/pcf8563/timer/
+tinygo build -size short -o ./build/test.hex -target=xiao-ble ./examples/qmc5883l/main.go
 tinygo build -size short -o ./build/test.hex -target=pico ./examples/qmi8658c/main.go
 tinygo build -size short -o ./build/test.hex -target=feather-m0 ./examples/ina260/main.go
 tinygo build -size short -o ./build/test.hex -target=nucleo-l432kc ./examples/aht20/main.go
