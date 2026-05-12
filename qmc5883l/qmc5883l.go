@@ -5,7 +5,7 @@ import (
 )
 
 type Device struct {
-	bus         machine.I2C
+	bus         *machine.I2C
 	Address     uint16
 	sensitivity int32
 }
@@ -18,7 +18,7 @@ type Configuration struct {
 	OSR  uint8 // Oversampling Ratio (512, 256, 128, 64)
 }
 
-func New(bus machine.I2C) Device {
+func New(bus *machine.I2C) Device {
 	return Device{
 		bus:     bus,
 		Address: Address,

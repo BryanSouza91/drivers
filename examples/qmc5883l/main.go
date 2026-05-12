@@ -10,7 +10,7 @@ import (
 func main() {
 	machine.I2C0.Configure(machine.I2CConfig{})
 	sensor := qmc5883l.New(machine.I2C0)
-	
+
 	cfg := qmc5883l.Configuration{
 		Mode: qmc5883l.ModeContinuous,
 		ODR:  qmc5883l.ODR_200Hz,
