@@ -4,21 +4,19 @@ import (
 	"errors"
 	"machine"
 	"time"
-
-	"tinygo.org/x/drivers"
-	"tinygo.org/x/drivers/internal/legacy"
 )
 
 // Device wraps an I2C connection to an IST8308 or IST8310 device.
 type Device struct {
-	bus        drivers.I2C
+	bus        *machine.I2C
 	deviceType byte
+	Address    uint16
 }
 
 // New creates a new IST83xx connection. The I2C bus must already be configured.
 //
 // This function only creates the Device object, it does not touch the device.
-func New(bus drivers.I2C) Device {
+func New(bus *machine.I2C) Device {
 	return Device{
 		bus: bus,
 	}
@@ -27,14 +25,14 @@ func New(bus drivers.I2C) Device {
 // Configure sets up the device, attempting to autodetect either an IST8308 or IST8310.
 func (d *Device) Configure() error {
 	// Probe for IST8308 first
-	d.bus.SetAddress(IST8308_I2C_ADDRESS_DEFAULT)
+	d.setAddress(IST8308_I2C_ADDRESS_DEFAULT)
 	if d.probe(IST8308) {
 		d.deviceType = IST8308
 		return d.configureIST8308()
 	}
 
 	// Probe for IST8310 second
-	d.bus.SetAddress(IST8310_I2C_ADDRESS_DEFAULT)
+	d.setAddress(IST8310_I2C_ADDRESS_DEFAULT)
 	if d.probe(IST8310) {
 		d.deviceType = IST8310
 		return d.configureIST8310()
@@ -59,7 +57,7 @@ func (d *Device) probe(devID byte) bool {
 		}
 	} else if devID == IST8310 {
 		for addr := 0x0C; addr <= 0x0F; addr++ {
-			d.bus.SetAddress(uint16(addr))
+			d.setAddress(uint16(addr))
 			d.writeRegister(IST8310_RegisterCNTL2, IST8310_CNTL2_BIT_SRST)
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -71,10 +69,15 @@ func (d *Device) probe(devID byte) bool {
 	return false
 }
 
+// setAddress sets the I2C address for the device.
+func (d *Device) setAddress(addr uint16) {
+	d.Address = addr
+}
+
 // readRegister reads a 1-byte register value.
 func (d *Device) readRegister(reg uint8) (uint8, error) {
 	data := []byte{0}
-	err := legacy.ReadRegister(d.bus, uint8(d.bus.Address()), reg, data)
+	err := d.bus.Tx(uint16(d.Address), []byte{reg}, data)
 	if err != nil {
 		return 0, err
 	}
@@ -83,15 +86,13 @@ func (d *Device) readRegister(reg uint8) (uint8, error) {
 
 // writeRegister writes a 1-byte value to a register.
 func (d *Device) writeRegister(reg uint8, val uint8) error {
-	data := []byte{val}
-	err := legacy.WriteRegister(d.bus, uint8(d.bus.Address()), reg, data)
-	return err
+	return d.bus.Tx(uint16(d.Address), append([]byte{reg}, val), nil)
 }
 
 // readRegisters reads a block of registers starting from the specified address.
 func (d *Device) readRegisters(reg uint8, len int) ([]byte, error) {
 	data := make([]byte, len)
-	err := legacy.ReadRegister(d.bus, uint8(d.bus.Address()), reg, data)
+	err := d.bus.Tx(uint16(d.Address), []byte{reg}, data)
 	if err != nil {
 		return nil, err
 	}

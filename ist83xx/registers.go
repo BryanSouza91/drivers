@@ -1,5 +1,11 @@
 package ist83xx
 
+// Device types
+const (
+	IST8308 = 0x08
+	IST8310 = 0x10
+)
+
 // IST8308 I2C Address and Device ID
 const (
 	IST8308_I2C_ADDRESS_DEFAULT = 0x0C
