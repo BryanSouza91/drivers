@@ -24,18 +24,14 @@ func New(bus *machine.I2C) Device {
 
 // Configure sets up the device, attempting to autodetect either an IST8308 or IST8310.
 func (d *Device) Configure() error {
-	// Probe for IST8308 first
-	d.setAddress(IST8308_I2C_ADDRESS_DEFAULT)
-	if d.probe(IST8308) {
-		d.deviceType = IST8308
-		return d.configureIST8308()
-	}
+	addresses := []uint16{IST8308_I2C_ADDRESS_DEFAULT, IST8310_I2C_ADDRESS_DEFAULT}
 
-	// Probe for IST8310 second
-	d.setAddress(IST8310_I2C_ADDRESS_DEFAULT)
-	if d.probe(IST8310) {
-		d.deviceType = IST8310
-		return d.configureIST8310()
+	for _, addr := range addresses {
+		d.setAddress(addr)
+		if deviceType, found := d.probe(); found {
+			d.deviceType = deviceType
+			return d.configure()
+		}
 	}
 
 	return errors.New("IST83xx not detected")
@@ -46,27 +42,31 @@ func (d *Device) Connected() bool {
 	return d.deviceType != 0
 }
 
-func (d *Device) probe(devID byte) bool {
-	if devID == IST8308 {
-		for i := 0; i < 3; i++ {
-			val, _ := d.readRegister(IST8308_RegisterWAI)
-			if val == IST8308_DeviceID {
-				return true
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	} else if devID == IST8310 {
-		for addr := 0x0C; addr <= 0x0F; addr++ {
-			d.setAddress(uint16(addr))
-			d.writeRegister(IST8310_RegisterCNTL2, IST8310_CNTL2_BIT_SRST)
-		}
-		time.Sleep(10 * time.Millisecond)
-		val, _ := d.readRegister(IST8310_RegisterWAI)
-		if val == IST8310_DeviceID {
-			return true
-		}
+// probe reads the WAI register and identifies which device is present.
+func (d *Device) probe() (byte, bool) {
+	val, err := d.readRegister(IST8308_RegisterWAI)
+	if err != nil {
+		return 0, false
 	}
-	return false
+	if val == IST8308_DeviceID {
+		return IST8308, true
+	}
+	if val == IST8310_DeviceID {
+		return IST8310, true
+	}
+	return 0, false
+}
+
+// configure calls the appropriate setup method for the detected device.
+func (d *Device) configure() error {
+	switch d.deviceType {
+	case IST8308:
+		return d.configureIST8308()
+	case IST8310:
+		return d.configureIST8310()
+	default:
+		return errors.New("unknown device type")
+	}
 }
 
 // setAddress sets the I2C address for the device.
